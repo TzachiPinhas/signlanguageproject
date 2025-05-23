@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import { useTheme } from '../contexts/ThemeContext';
+import ModelStorageManager from '../components/ModelStorageManager';
 
 const SettingsScreen = () => {
   const { isDarkMode, toggleDarkMode, theme: COLORS } = useTheme();
@@ -102,6 +103,9 @@ const SettingsScreen = () => {
               <LinkText color={COLORS.primary}>Privacy policy</LinkText>
             </LinkRow>
           </SettingCard>
+        </SettingsSection>        <SettingsSection>
+          <SectionTitle color={COLORS.text}>Advanced</SectionTitle>
+          <ModelStorageManager />
         </SettingsSection>
 
         <SettingsSection>

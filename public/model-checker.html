@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Language Model Checker</title>
+    <!-- Load TensorFlow.js for testing -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+    <!-- Load additional backends -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.22.0/dist/tf-backend-webgl.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-cpu@4.22.0/dist/tf-backend-cpu.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .output {
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-top: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .action-group {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .panel {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+    </style>
+</head>
+<body>
+    <h1>Sign Language Model Diagnostic Tool</h1>
+    <p>This tool helps diagnose issues with the model loading process. It contains TensorFlow.js v4.22.0 to properly test model loading.</p>
+    
+    <div class="action-group">
+        <button id="checkButton">Run Full Diagnostics</button>
+        <button id="testLocalButton">Test Local Model</button>
+        <button id="testRemoteButton">Test Remote Endpoints</button>
+        <button id="clearCacheButton">Clear Browser Caches</button>
+        <button id="clearButton">Clear Output</button>
+    </div>
+    
+    <div id="modelTestPanel" class="panel" style="display: none;">
+        <h3>Direct Model Testing</h3>
+        <p id="modelTestStatus"></p>
+        <progress id="modelLoadProgress" value="0" max="100" style="width: 100%; display: none;"></progress>
+    </div>
+    
+    <div id="output" class="output">Click "Run Diagnostics" to start checking for model issues...</div>
+      <script>
+        // Override console methods to capture output
+        const outputDiv = document.getElementById('output');
+        let logOutput = '';
+        
+        const originalConsole = {
+            log: console.log,
+            error: console.error,
+            warn: console.warn
+        };
+        
+        console.log = function(...args) {
+            originalConsole.log(...args);
+            logOutput += args.join(' ') + '\n';
+            outputDiv.textContent = logOutput;
+        };
+        
+        console.error = function(...args) {
+            originalConsole.error(...args);
+            logOutput += '🔴 ' + args.join(' ') + '\n';
+            outputDiv.textContent = logOutput;
+        };
+        
+        console.warn = function(...args) {
+            originalConsole.warn(...args);
+            logOutput += '⚠️ ' + args.join(' ') + '\n';
+            outputDiv.textContent = logOutput;
+        };
+        
+        // TensorFlow.js model constants
+        const MODEL_URL = {
+            TFJS_MODEL: "https://signlanguagewebapp-a5eff0dabmhwfphu.westeurope-01.azurewebsites.net/download-model",
+            MODEL_ZIP: "https://signlanguagewebapp-a5eff0dabmhwfphu.westeurope-01.azurewebsites.net/download-tfjs-model",
+            LOCAL_MODEL: "/models/sign_language_model/model.json",
+            CACHE_KEY: "sign-language-model-v5"
+        };
+        
+        // Initialize TensorFlow.js
+        async function initTensorFlow() {
+            try {
+                await tf.ready();
+                console.log(`TensorFlow.js initialized successfully!`);
+                console.log(`Version: ${tf.version.tfjs}`);
+                console.log(`Backend: ${tf.getBackend()}`);
+                return true;
+            } catch (error) {
+                console.error(`Failed to initialize TensorFlow.js: ${error.message}`);
+                return false;
+            }
+        }
+        
+        // Test loading the local model
+        async function testLoadLocalModel() {
+            const modelTestStatus = document.getElementById('modelTestStatus');
+            const progress = document.getElementById('modelLoadProgress');
+            const panel = document.getElementById('modelTestPanel');
+            
+            panel.style.display = 'block';
+            progress.style.display = 'block';
+            progress.value = 0;
+            
+            try {
+                modelTestStatus.textContent = 'Testing local model loading...';
+                console.log('Attempting to load local model from', MODEL_URL.LOCAL_MODEL);
+                
+                // Initialize TensorFlow
+                await initTensorFlow();
+                
+                // Try to load the model with progress reporting
+                const loadedModel = await tf.loadLayersModel(MODEL_URL.LOCAL_MODEL, {
+                    onProgress: (fraction) => {
+                        const percent = Math.round(fraction * 100);
+                        progress.value = percent;
+                        modelTestStatus.textContent = `Loading model: ${percent}%`;
+                    }
+                });
+                
+                // Model loaded successfully
+                console.log('✅ Local model loaded successfully!');
+                console.log('Model structure:', loadedModel.summary());
+                
+                // Test a prediction with the model
+                const dummyInput = tf.zeros([1, 30, 126]);
+                const prediction = loadedModel.predict(dummyInput);
+                
+                console.log('Model output shape:', prediction.shape);
+                console.log('Model output sample:', await prediction.data());
+                
+                modelTestStatus.innerHTML = '<span style="color: green">✓ Local model loaded and verified successfully!</span>';
+                
+                // Cleanup
+                prediction.dispose();
+                dummyInput.dispose();
+                loadedModel.dispose();
+                
+            } catch (error) {
+                console.error('❌ Error loading local model:', error.message);
+                modelTestStatus.innerHTML = `<span style="color: red">✗ Local model loading failed: ${error.message}</span>`;
+            } finally {
+                progress.style.display = 'none';
+            }
+        }
+        
+        // Test remote endpoints
+        async function testRemoteEndpoints() {
+            const modelTestStatus = document.getElementById('modelTestStatus');
+            const panel = document.getElementById('modelTestPanel');
+            
+            panel.style.display = 'block';
+            modelTestStatus.textContent = 'Testing remote model endpoints...';
+            
+            console.log('Testing remote model endpoints...');
+            
+            // Test both model endpoints
+            try {
+                const directModelResponse = await fetch(MODEL_URL.TFJS_MODEL, { method: 'HEAD' });
+                if (directModelResponse.ok) {
+                    console.log(`✅ Direct model endpoint is accessible (${MODEL_URL.TFJS_MODEL})`);
+                } else {
+                    console.error(`❌ Direct model endpoint returned ${directModelResponse.status} (${MODEL_URL.TFJS_MODEL})`);
+                }
+            } catch (error) {
+                console.error(`❌ Cannot access direct model endpoint: ${error.message}`);
+            }
+            
+            try {
+                const zipModelResponse = await fetch(MODEL_URL.MODEL_ZIP, { method: 'HEAD' });
+                if (zipModelResponse.ok) {
+                    console.log(`✅ ZIP model endpoint is accessible (${MODEL_URL.MODEL_ZIP})`);
+                    const contentLength = zipModelResponse.headers.get('content-length');
+                    if (contentLength) {
+                        console.log(`ZIP file size: ${(parseInt(contentLength) / (1024 * 1024)).toFixed(2)} MB`);
+                    }
+                } else {
+                    console.error(`❌ ZIP model endpoint returned ${zipModelResponse.status} (${MODEL_URL.MODEL_ZIP})`);
+                }
+                
+                modelTestStatus.textContent = 'Remote endpoint testing complete';
+            } catch (error) {
+                console.error(`❌ Cannot access ZIP model endpoint: ${error.message}`);
+                modelTestStatus.textContent = `Error testing endpoints: ${error.message}`;
+            }
+        }
+        
+        // Clear browser storage caches
+        async function clearBrowserCaches() {
+            try {
+                console.log('Clearing browser caches for model data...');
+                
+                // Clear localStorage
+                const localStorageKeys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && (key.includes('tensorflowjs') || key.includes(MODEL_URL.CACHE_KEY))) {
+                        localStorageKeys.push(key);
+                    }
+                }
+                
+                localStorageKeys.forEach(key => {
+                    localStorage.removeItem(key);
+                    console.log(`Removed localStorage key: ${key}`);
+                });
+                
+                // Clear sessionStorage
+                sessionStorage.removeItem('modelZipData');
+                sessionStorage.removeItem('modelZipTimestamp');
+                sessionStorage.removeItem('modelZipVersion');
+                console.log('Cleared model data from sessionStorage');
+                
+                // Clear IndexedDB
+                try {
+                    // Request to delete the database
+                    const deleteRequest = indexedDB.deleteDatabase('tensorflowjs');
+                    
+                    deleteRequest.onsuccess = () => {
+                        console.log('IndexedDB model storage cleared successfully');
+                    };
+                    
+                    deleteRequest.onerror = (event) => {
+                        console.error('Error clearing IndexedDB:', event.target.error);
+                    };
+                } catch (dbError) {
+                    console.error('Error accessing IndexedDB:', dbError);
+                }
+                
+                console.log('Cache clearing completed. Refresh the page to test with clean caches.');
+                
+            } catch (error) {
+                console.error('Error clearing caches:', error.message);
+            }
+        }
+        
+        // Add the diagnostic script dynamically
+        function loadScript() {
+            const script = document.createElement('script');
+            script.src = '../src/utils/checkModel.js';
+            script.onerror = () => {
+                console.error('Failed to load diagnostic script. Check the path.');
+            };
+            document.body.appendChild(script);
+        }
+        
+        // Button handlers
+        document.getElementById('checkButton').addEventListener('click', async () => {
+            logOutput = '';
+            outputDiv.textContent = 'Running full diagnostics...\n';
+            
+            // Initialize TensorFlow
+            await initTensorFlow();
+            
+            if (typeof window.runModelCheck !== 'function') {
+                loadScript();
+                setTimeout(() => {
+                    if (typeof window.runModelCheck === 'function') {
+                        window.runModelCheck();
+                    } else {
+                        console.error('Could not load or execute the diagnostic script. Please check the browser console for errors.');
+                    }
+                }, 500);
+            } else {
+                await window.runModelCheck();
+            }
+        });
+        
+        document.getElementById('testLocalButton').addEventListener('click', () => {
+            logOutput = '';
+            outputDiv.textContent = 'Testing local model loading...\n';
+            testLoadLocalModel();
+        });
+        
+        document.getElementById('testRemoteButton').addEventListener('click', () => {
+            logOutput = '';
+            outputDiv.textContent = 'Testing remote model endpoints...\n';
+            testRemoteEndpoints();
+        });
+        
+        document.getElementById('clearCacheButton').addEventListener('click', () => {
+            logOutput = '';
+            outputDiv.textContent = 'Clearing browser caches...\n';
+            clearBrowserCaches();
+        });
+        
+        document.getElementById('clearButton').addEventListener('click', () => {
+            logOutput = '';
+            outputDiv.textContent = 'Output cleared.';
+            document.getElementById('modelTestPanel').style.display = 'none';
+        });
+        
+        // Initialize page
+        window.addEventListener('DOMContentLoaded', () => {
+            // Load the diagnostic script
+            loadScript();
+            
+            // Check if TensorFlow.js loaded correctly
+            setTimeout(async () => {
+                await initTensorFlow();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

@@ -75,17 +75,15 @@ function App() {
             isSignedIn ? <Navigate to="/home" replace /> : <LoginScreen />
           } />
           
-          {/* Make home screen the default landing page */}
+          {/* Make camera screen the default landing page */}
           <Route path="/" element={
-            <Navigate to="/home" replace />
+            <Navigate to="/camera" replace />
           } />
           
-          {/* Home screen - Main landing page after authentication */}
+          {/* Home screen - Now redirects to camera */}
           <Route path="/home" element={
             <ProtectedRoute>
-              <Layout>
-                <HomeScreen />
-              </Layout>
+              <Navigate to="/camera" replace />
             </ProtectedRoute>
           } />
           

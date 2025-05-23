@@ -1,3 +1,37 @@
+# Sign Language Recognition Web Application
+
+This web application uses TensorFlow.js and MediaPipe to recognize sign language gestures in real-time through a webcam.
+
+## Machine Learning Model Information
+
+### Model Types
+
+The application can use three types of models:
+
+1. **Mock Model (Default for Testing)**: A simple TensorFlow.js model used for UI testing.
+2. **Pre-converted TensorFlow.js Model**: A model hosted remotely or locally that's already in TensorFlow.js format.
+3. **Converted Keras Model**: A model that needs to be converted from Keras format to TensorFlow.js format.
+
+### Model Configuration
+
+In `src/hooks/useSignLanguageModel.js`, you can configure which model to use:
+
+```javascript
+const MODEL_URL = {
+  TFJS_MODEL: "https://storage.googleapis.com/sign-language-models-tfjs/model.json", // Replace with your model URL
+  LOCAL_MODEL: "/models/sign_language_model/model.json" // Local model path
+};
+
+// Set to false when you have a real model available
+const USE_MOCK_MODEL = true;
+```
+
+### Model Conversion
+
+To convert a Keras model to TensorFlow.js format, see [MODEL_CONVERSION.md](./MODEL_CONVERSION.md)
+
+---
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).

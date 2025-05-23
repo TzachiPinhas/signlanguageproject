@@ -1,0 +1,242 @@
+import { useState, useEffect, useRef } from 'react';
+import * as tf from '@tensorflow/tfjs';
+
+// Constants
+const FRAME_BUFFER_SIZE = 30;
+const MODEL_PATH = '/models/sign_language_model/model.json';
+const CONFIDENCE_THRESHOLD = 0.7;
+
+// Model loading stages
+const LOADING_STAGES = {
+  INITIALIZING: 'initializing',
+  DOWNLOADING: 'downloading',
+  EXTRACTING: 'extracting',
+  LOADING: 'loading',
+  READY: 'ready'
+};
+
+/**
+ * Simplified hook for sign language recognition using TensorFlow.js
+ */
+const useSignLanguageModel = () => {  // Model loading state
+  const [model, setModel] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Model loading progress tracking
+  const [modelLoadingStage, setModelLoadingStage] = useState(LOADING_STAGES.INITIALIZING); // Tracks the current stage of model loading
+  const [downloadProgress, setDownloadProgress] = useState(0); // Percentage progress of model download (0-100)
+  const [extractionProgress, setExtractionProgress] = useState(0); // Percentage progress of model extraction (0-100)
+  const [isMockModel, setIsMockModel] = useState(false); // Flag indicating if we're using a mock model fallback
+
+  // Buffer and prediction state
+  const bufferRef = useRef([]);
+  const [bufferLength, setBufferLength] = useState(0);
+  const [isBufferFull, setIsBufferFull] = useState(false);
+  const [isPredicting, setIsPredicting] = useState(false);
+  const [prediction, setPrediction] = useState(null);
+  // Load model once
+  useEffect(() => {
+    const loadModel = async () => {
+      try {
+        setModelLoadingStage(LOADING_STAGES.INITIALIZING);
+        
+        await tf.ready();
+        setModelLoadingStage(LOADING_STAGES.DOWNLOADING);
+        setDownloadProgress(10);
+        
+        // Simulate download progress for better UX
+        const downloadTimer = setInterval(() => {
+          setDownloadProgress(prev => {
+            const newValue = prev + 10;
+            if (newValue >= 100) {
+              clearInterval(downloadTimer);
+              setModelLoadingStage(LOADING_STAGES.LOADING);
+              return 100;
+            }
+            return newValue;
+          });
+        }, 200);
+        
+        try {
+          const loaded = await tf.loadLayersModel(MODEL_PATH);
+          setModel(loaded);
+          setModelLoadingStage(LOADING_STAGES.READY);
+          setDownloadProgress(100);
+          setExtractionProgress(100);
+        } catch (modelError) {
+          console.error('Failed to load model:', modelError);
+          // Fallback to mock model for demo purposes
+          setIsMockModel(true);
+          setError(`Model load failed (using mock data): ${modelError.message}`);
+          setModelLoadingStage(LOADING_STAGES.READY);
+        }
+      } catch (err) {
+        setError(`Model load failed: ${err.message}`);
+        setIsMockModel(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadModel();
+  }, []);  // Process a frame of hand landmarks
+  const processHandLandmarks = (landmarkerResult) => {
+    // Create an array of zeros with the expected length for 2 hands (126 values)
+    // 21 landmarks per hand * 3 coordinates (x,y,z) * 2 hands = 126
+    const arr = new Array(126).fill(0);
+    
+    // Get available hand landmarks (0, 1, or 2 hands detected)
+    const hands = landmarkerResult.landmarks || [];
+    
+    // Process up to 2 hands (right hand first if available, then left hand)
+    for (let hi = 0; hi < Math.min(hands.length, 2); hi++) {
+      const hand = hands[hi];
+      // Process each landmark in the hand (21 landmarks per hand)
+      for (let li = 0; li < 21; li++) {
+        // Calculate base index: 
+        // First 63 values (0-62) for first hand, next 63 (63-125) for second hand
+        const baseIdx = hi * 63 + li * 3;
+        
+        // If we have landmark data for this position, use it
+        if (li < hand.length) {
+          const lm = hand[li];
+          // Store x, y, z coordinates
+          arr[baseIdx] = lm.x;
+          arr[baseIdx + 1] = lm.y;
+          arr[baseIdx + 2] = lm.z;
+        }
+        // Otherwise zeros will remain in place (from the initial fill(0))
+      }
+    }
+    
+    // Debug: Validate frame size
+    if (arr.length !== 126) {
+      console.error(`Invalid frame size created: ${arr.length}/126 values`);
+    }
+    
+    // Add to buffer
+    bufferRef.current.push(arr);
+    if (bufferRef.current.length > FRAME_BUFFER_SIZE) bufferRef.current.shift();
+    
+    // Update state
+    const len = bufferRef.current.length;
+    setBufferLength(len);
+    const full = len === FRAME_BUFFER_SIZE;
+    setIsBufferFull(full);
+    
+    // Log buffer progress only when important (reaching full or starting fresh)
+    if (len % 5 === 0 || len === FRAME_BUFFER_SIZE) {
+      console.log(`Buffer update: ${len}/${FRAME_BUFFER_SIZE} frames`);
+    }
+    
+    return full;
+  };// Manual prediction function that can be called externally
+  const runPrediction = async () => {
+    if (!model || !isBufferFull) {
+      console.log("Cannot run prediction: model not loaded or buffer not full");
+      return;
+    }
+    
+    setIsPredicting(true);
+    console.log(`Predicting at ${bufferLength}/${FRAME_BUFFER_SIZE}`);
+    
+    try {
+      // Validate buffer before creating tensor
+      if (bufferRef.current.length !== FRAME_BUFFER_SIZE) {
+        throw new Error(`Invalid buffer size: ${bufferRef.current.length}/${FRAME_BUFFER_SIZE}`);
+      }
+      
+      // Check each frame to ensure it has exactly 126 values
+      const frameWithWrongSize = bufferRef.current.find(frame => frame.length !== 126);
+      if (frameWithWrongSize) {
+        throw new Error(`Invalid frame size: ${frameWithWrongSize.length}/126 values`);
+      }
+      
+      // Create the input tensor with shape [1, 30, 126]
+      // 1 sample, 30 frames, 126 features per frame
+      const input = tf.tensor3d([bufferRef.current], [1, FRAME_BUFFER_SIZE, 126]);
+      
+      // Log tensor details for debugging
+      const totalValues = input.size;
+      console.log(`Input tensor shape: ${input.shape}, Total values: ${totalValues}`);
+      console.log(`Expected values: ${1 * FRAME_BUFFER_SIZE * 126}`);
+      
+      // Make prediction
+      const preds = model.predict(input);
+      const data = await preds.data();
+      
+      // Clean up tensors
+      tf.dispose([input, preds]);
+      
+      // Find the class with the highest confidence
+      let max = 0, idx = 0;
+      data.forEach((v, i) => { if (v > max) { max = v; idx = i; }});
+      
+      // Report prediction based on confidence threshold
+      if (max >= CONFIDENCE_THRESHOLD) {
+        console.log(`Prediction successful: ${model.outputNames?.[idx] || `class_${idx}`} (${max.toFixed(2)})`);
+        setPrediction({ label: model.outputNames?.[idx] || `class_${idx}`, confidence: max });
+      } else {
+        console.log(`Low confidence prediction: ${max.toFixed(2)}`);
+        setPrediction({ label: 'No confident prediction', confidence: max });
+      }
+    } catch (e) {
+      console.error(`Prediction error: ${e.message}`);
+      setError(`Prediction error: ${e.message}`);
+    } finally {
+      setIsPredicting(false);
+      
+      // After successful prediction, reset the buffer
+      bufferRef.current = [];
+      setBufferLength(0);
+      setIsBufferFull(false);
+    }
+  };
+      console.error(`Prediction error: ${e.message}`);
+      setError(`Prediction error: ${e.message}`);
+    } finally {
+      setIsPredicting(false);
+      // Only reset the buffer after prediction is complete
+      // This prevents resetting before prediction happens
+      bufferRef.current = [];
+      setBufferLength(0);
+      setIsBufferFull(false);
+    }
+  };
+  // Run prediction automatically when buffer is full
+  useEffect(() => {
+    if (isBufferFull && model && !isPredicting) {
+      runPrediction();
+    }
+  }, [isBufferFull, model, isPredicting]);
+
+  // Reset buffer externally
+  const resetBuffer = () => {
+    bufferRef.current = [];
+    setBufferLength(0);
+    setIsBufferFull(false);
+    setPrediction(null);
+  };
+
+  return {
+    model,
+    isLoading,
+    error,
+    bufferLength,
+    isBufferFull,
+    isPredicting,
+    prediction,
+    processHandLandmarks,
+    runPrediction,
+    resetBuffer,
+    FRAME_BUFFER_SIZE,
+    // Export additional variables
+    modelLoadingStage,
+    downloadProgress,
+    extractionProgress,
+    isMockModel,
+    confidenceThreshold: CONFIDENCE_THRESHOLD, // Export the confidence threshold constant
+  };
+};
+
+export default useSignLanguageModel;

@@ -1,0 +1,73 @@
+{
+  "format": "layers-model",
+  "generatedBy": "TensorFlow.js v4.22.0",
+  "convertedBy": "TensorFlow.js Converter",
+  "modelTopology": {
+    "class_name": "Sequential",
+    "config": {
+      "name": "sign_language_model",
+      "layers": [
+        {
+          "class_name": "LSTM",
+          "config": {
+            "name": "lstm_1",
+            "trainable": true,
+            "units": 64,
+            "activation": "relu",
+            "recurrent_activation": "sigmoid",
+            "use_bias": true,
+            "return_sequences": true,
+            "batch_input_shape": [null, 30, 126]
+          }
+        },
+        {
+          "class_name": "LSTM",
+          "config": {
+            "name": "lstm_2",
+            "trainable": true,
+            "units": 32,
+            "activation": "relu",
+            "recurrent_activation": "sigmoid",
+            "use_bias": true,
+            "return_sequences": false
+          }
+        },
+        {
+          "class_name": "Dropout",
+          "config": {
+            "name": "dropout_1",
+            "trainable": true,
+            "rate": 0.2
+          }
+        },
+        {
+          "class_name": "Dense",
+          "config": {
+            "name": "dense_output",
+            "trainable": true,
+            "units": 20,
+            "activation": "softmax",
+            "use_bias": true
+          }
+        }
+      ]
+    },
+    "keras_version": "2.8.0",
+    "backend": "tensorflow"
+  },
+  "weightsManifest": [
+    {
+      "paths": ["group1-shard1of1.bin"],
+      "weights": [
+        {"name": "lstm_1/kernel", "shape": [126, 256], "dtype": "float32"},
+        {"name": "lstm_1/recurrent_kernel", "shape": [64, 256], "dtype": "float32"},
+        {"name": "lstm_1/bias", "shape": [256], "dtype": "float32"},
+        {"name": "lstm_2/kernel", "shape": [64, 128], "dtype": "float32"},
+        {"name": "lstm_2/recurrent_kernel", "shape": [32, 128], "dtype": "float32"},
+        {"name": "lstm_2/bias", "shape": [128], "dtype": "float32"},
+        {"name": "dense_output/kernel", "shape": [32, 20], "dtype": "float32"},
+        {"name": "dense_output/bias", "shape": [20], "dtype": "float32"}
+      ]
+    }
+  ]
+}

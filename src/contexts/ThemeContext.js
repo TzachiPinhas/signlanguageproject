@@ -8,7 +8,7 @@ const ThemeContext = createContext();
 export const useTheme = () => useContext(ThemeContext);
 
 // Provider component
-export const ThemeProvider = ({ children }) => {
+const ThemeProvider = ({ children }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [theme, setTheme] = useState(getThemeColors(false));
 
@@ -42,7 +42,6 @@ export const ThemeProvider = ({ children }) => {
       console.error("Error loading theme preference:", error);
     }
   }, []);
-
   return (
     <ThemeContext.Provider value={{ isDarkMode, toggleDarkMode, theme }}>
       {children}
@@ -50,4 +49,5 @@ export const ThemeProvider = ({ children }) => {
   );
 };
 
-export default ThemeContext;
+// Export the provider component
+export { ThemeProvider, ThemeContext };
